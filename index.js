@@ -1,8 +1,8 @@
 import { HttpMux } from "./lib/http.js";
 import { serve } from "./middleware/serve.js";
-import { remoteFunction, remoteInstance } from "./middleware/remote.js";
+import { remoteFunction } from "./middleware/remote.js";
 
-const remote_functions = remoteInstance({
+const remote_functions = {
     greetings: (body, file) => {
         console.log(body, file);
         return { message: `Hello from server "${body.age} ${body.name}"`, date: new Date() };
@@ -15,7 +15,7 @@ const remote_functions = remoteInstance({
         console.log(a, b, a + b);
         return a + b;
     }
-});
+};
 
 const mux = new HttpMux();
 mux.handle("/", serve('public'));
