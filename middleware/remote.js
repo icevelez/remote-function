@@ -1,5 +1,5 @@
 /**
- * @param {{ [key:string] : (req:http.IncomingMessage, body:any }} remote_fns
+ * @param {{ [key:string] : (req:http.IncomingMessage, body:any) => Promise<void> | void }} remote_fns
  */
 export function remoteFunction(remote_fns) {
     /**
