@@ -1,5 +1,14 @@
+import http from 'http';
+
 /**
- * @param {{ [key:string] : (req:http.IncomingMessage, body:any) => Promise<void> | void }} remote_fns
+ * @typedef {{ [key:string] : Function }} RemoteObject
+ */
+
+/** @type {(remote_fns:RemoteObject) => RemoteObject} */
+export const remoteInstance = (remote_fns = {}) => remote_fns;
+
+/**
+ * @param {RemoteObject} remote_fns
  */
 export function remoteFunction(remote_fns) {
     /**
@@ -9,26 +18,7 @@ export function remoteFunction(remote_fns) {
     return async (req, res) => {
         if (req.method !== 'POST') return;
 
-        const func_name = req.headers['x-func-name'];
-        const func = func_name ? remote_fns[func_name] : null;
-        if (!func_name || !func) {
-            res.writeHead(404);
-            res.end(`Function "${func_name}" not found`);
-            return;
-        }
-
         const contentType = req.headers["content-type"] || "";
-
-        if (contentType.startsWith("text/plain")) {
-            let body = '';
-            for await (const chunk of req) body += chunk;
-            let response = func(req, body);
-            if (response instanceof Promise) response = await response;
-            res.setHeader('Type', typeof response === "object" ? "json" : "text")
-            res.setHeader('Content-type', typeof response === "object" ? "application/json" : "plain/text");
-            res.end(typeof response === "object" ? JSON.stringify(response) : response);
-            return;
-        }
 
         if (!contentType.startsWith("multipart/form-data")) {
             res.writeHead(400);
@@ -43,9 +33,17 @@ export function remoteFunction(remote_fns) {
             return;
         }
 
+        const func_name = req.headers['x-func-name'];
+        const func = func_name ? remote_fns[func_name] : null;
+        if (!func_name || !func) {
+            res.writeHead(404);
+            res.end(`Function "${func_name}" not found`);
+            return;
+        }
+
         try {
             const fields = await parseMultipart(req, boundary);
-            let response = func(req, fields);
+            let response = func(...fields);
             if (response instanceof Promise) response = await response;
             res.setHeader('Type', typeof response === "object" ? "json" : "text")
             res.setHeader('Content-type', typeof response === "object" ? "application/json" : "plain/text");
@@ -68,9 +66,7 @@ export function parseMultipart(stream, boundary) {
         const dashBoundary = "--" + boundary;
         const boundaryBuffer = Buffer.from(dashBoundary);
         const endBoundaryBuffer = Buffer.from(dashBoundary + "--");
-        const fields = {};
-
-        console.log(dashBoundary);
+        const fields = [];
 
         let buffer = Buffer.alloc(0);
         let state = "SEARCH_PART"; // SEARCH_PART → HEADERS → BODY
@@ -110,7 +106,7 @@ export function parseMultipart(stream, boundary) {
             const data = Buffer.concat(current.data);
 
             if (current.filename) {
-                fields[current.name] = current.filename === "blob" ? new Blob([data]) : new File([data], current.filename);
+                fields[current.name] = current.filename === "json" ? JSON.parse(data.toString("utf8")) : current.filename === "blob" ? new Blob([data]) : new File([data], current.filename);
             } else {
                 fields[current.name] = data.toString("utf8");
             }

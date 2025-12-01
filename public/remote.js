@@ -2,16 +2,15 @@ const remote_endpoint = "./api/remote";
 
 /**
  * @param {string} fn_name
- * @param {any} body
+ * @param {any[]} args
  */
-async function remoteFetch(fn_name, body) {
+async function remoteFetch(fn_name, args) {
+    const formData = new FormData();
+    for (let i = 0; i < args.length; i++) formData.append(i, Object.getPrototypeOf(args[i]) === Object.prototype ? new File([JSON.stringify(args[i])], 'json') : args[i]);
     const response = await fetch(remote_endpoint, {
         method: 'POST',
         headers: { 'X-Func-Name': fn_name },
-        body: typeof body === "object" ? Object.entries(body).reduce((form, [key, value]) => {
-            form.append(key, value)
-            return form;
-        }, new FormData()) : body,
+        body: formData,
     })
     return response[response.headers.get("type") || "text"]();
 }
@@ -19,6 +18,6 @@ async function remoteFetch(fn_name, body) {
 /** @type {{ [key:string] : (body:any) => Promise<any> }} */
 export const Remote = new Proxy({}, {
     get(_, fn_name) {
-        return (body) => remoteFetch(fn_name, body)
+        return (...args) => remoteFetch(fn_name, args)
     },
 });
