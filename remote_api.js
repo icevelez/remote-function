@@ -24,11 +24,11 @@ export const remote_functions = {
         return a + b;
     },
     /**
+     * This is a comment
      * @param {File} file
      */
     upload_file: async (file) => {
         console.log("Uploaded File:", file);
-
         return "Upload Sucessful!";
     },
 };

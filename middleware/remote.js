@@ -9,8 +9,9 @@ export const remoteInstance = (remote_fns = {}) => remote_fns;
 
 /**
  * @param {RemoteObject} remote_fns
+ * @param {{ max_field_size_in_mb : number }} config
  */
-export function remoteFunction(remote_fns) {
+export function remoteFunction(remote_fns, config) {
     /**
      * @param {http.IncomingMessage} req
      * @param {http.ServerResponse<http.IncomingMessage>} res
@@ -49,7 +50,7 @@ export function remoteFunction(remote_fns) {
         }
 
         try {
-            const fields = await parseMultipart(req, boundary, func_param_data_types);
+            const fields = await parseMultipart(req, boundary, func_param_data_types, (config?.max_field_size_in_mb || 0) * (1024 * 1024));
             let response = func(...fields);
             if (response instanceof Promise) response = await response;
             res.setHeader('Parse-Type', response && typeof response === "object" ? "json" : "text");
@@ -69,8 +70,9 @@ export function remoteFunction(remote_fns) {
  * @param {Readable} stream
  * @param {string} boundary
  * @param {string[]} func_param_data_types
+ * @param {number} max_body_size
  */
-export function parseMultipart(stream, boundary, func_param_data_types) {
+export function parseMultipart(stream, boundary, func_param_data_types, max_body_size) {
     return new Promise((resolve, reject) => {
         const dashBoundary = "--" + boundary;
         const boundaryBuffer = Buffer.from(dashBoundary);
@@ -113,6 +115,12 @@ export function parseMultipart(stream, boundary, func_param_data_types) {
             if (!current.name) return;
 
             const data = Buffer.concat(current.data);
+            if (max_body_size > 0 && data.byteLength >= max_body_size) {
+                const error_message = `maximum size (${(max_body_size / (1024 * 1024)).toFixed(2)}MB) of the request body reached`;
+                console.error(error_message);
+                return reject(error_message);
+            }
+
             const type = func_param_data_types[fields.length];
             if (!type) throw new Error("Missing type");
 
@@ -127,7 +135,6 @@ export function parseMultipart(stream, boundary, func_param_data_types) {
 
         stream.on("data", chunk => {
             buffer = Buffer.concat([buffer, chunk]);
-
             let boundaryIndex;
 
             while (true) {
