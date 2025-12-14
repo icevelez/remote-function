@@ -1,6 +1,6 @@
 import { Pool } from "pg";
 import { HttpMux } from "./lib/http.js";
-import { authInstance } from "./lib/auth.js";
+import { createAuth } from "./lib/auth.js";
 import { serve } from "./middleware/serve.js";
 import { remoteFunction } from "./middleware/remote.js";
 import Remote from "./remote_api.js";
@@ -11,11 +11,11 @@ const database = new Pool({
     password: 'pg'
 });
 
-const auth = authInstance((request, response) => {
+const auth = createAuth((request, response) => {
     const auth_key = request.headers['x-auth'] || "";
     if (auth_key) return `${request.headers['x-auth']}`;
     response.writeHead(401);
-    response.end("unauthorized")
+    response.end("unauthorized");
     return "";
 })
 

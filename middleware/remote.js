@@ -1,4 +1,4 @@
-import http from 'http';
+/** @import http from 'http' */
 
 const byte_to_megabyte = (byte) => byte * 1024 * 1024;
 
@@ -130,9 +130,8 @@ export function parseMultipart(stream, boundary, func_param_data_types, max_requ
             const type = func_param_data_types[paramIndex++];
 
             if (currentFilename) {
-                fields[currentName] = currentFilename === ".json" ? JSON.parse(data.toString("utf8")) : currentFilename === "blob" ? new Blob([data]) : new File([data], currentFilename);
+                fields[currentName] = currentFilename === ".json" ? decode(data.toString("utf8")) : currentFilename === "blob" ? new Blob([data]) : new File([data], currentFilename);
             } else {
-                const v = data.toString("utf8");
                 fields[currentName] = type === "number" ? +v : type === "boolean" ? v === "true" : v === "undefined" ? undefined : v === "null" ? null : v;
             }
 
@@ -194,4 +193,16 @@ export function parseMultipart(stream, boundary, func_param_data_types, max_requ
         stream.on("end", () => resolve(fields));
         stream.on("error", reject);
     });
+}
+
+function deserialize(v) {
+    if (v?.__t === "Map") return new Map(v.v);
+    if (v?.__t === "RegExp") return new Regex(v.v);
+    if (v?.__t === "Set") return new Set(v.v);
+    if (v?.__t === "Date") return new Date(v.v);
+    return v;
+}
+
+function decode(json) {
+    return JSON.parse(json, (_, v) => deserialize(v));
 }

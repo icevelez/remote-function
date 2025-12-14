@@ -1,6 +1,22 @@
+function serialize(v) {
+    if (v instanceof Map) return { __t: "Map", v: [...v] };
+    if (v instanceof Set) return { __t: "Set", v: [...v] };
+    if (v instanceof RegExp) return { __t: "RegExp", v: v.toString() };
+    if (v instanceof Date) return { __t: "Date", v: v.toISOString() };
+    return v;
+}
+
+function encode(obj) {
+    return JSON.stringify(obj, (k, v) => serialize(obj[k] || v));
+}
+
 async function remoteFetch(fn_name, headers, args, remote_endpoint) {
     const formData = new FormData();
-    for (let i = 0; i < args.length; i++) formData.append(i, args[i] && Object.getPrototypeOf(args[i]) === Object.prototype ? new File([JSON.stringify(args[i])], '.json') : args[i]);
+    for (let i = 0; i < args.length; i++) {
+        args[i] = serialize(args[i]);
+        const is_jsonable = args[i] && Object.getPrototypeOf(args[i]) === Object.prototype || Array.isArray(args[i]);
+        formData.append(i, is_jsonable ? new File([encode(args[i])], '.json') : args[i]);
+    }
 
     const response = await fetch(remote_endpoint, {
         method: 'POST',
