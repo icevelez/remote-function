@@ -1,14 +1,5 @@
-function serialize(v) {
-    if (v instanceof Map) return { __t: "Map", v: [...v] };
-    if (v instanceof Set) return { __t: "Set", v: [...v] };
-    if (v instanceof RegExp) return { __t: "RegExp", v: v.toString() };
-    if (v instanceof Date) return { __t: "Date", v: v.toISOString() };
-    return v;
-}
-
-function encode(obj) {
-    return JSON.stringify(obj, (k, v) => serialize(obj[k] || v));
-}
+const serialize = (v) => v instanceof Map ? { __t: "Map", v: [...v] } : v instanceof Set ? { __t: "Set", v: [...v] } : v instanceof RegExp ? { __t: "RegExp", v: v.toString() } : v instanceof Date ? { __t: "Date", v: v.toISOString() } : v;
+const encode = (obj) => JSON.stringify(obj, (k, v) => serialize(obj[k] || v));
 
 async function remoteFetch(fn_name, headers, args, remote_endpoint) {
     const formData = new FormData();

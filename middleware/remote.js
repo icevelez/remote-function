@@ -84,7 +84,6 @@ export function parseMultipart(stream, boundary, func_param_data_types, max_requ
         let currentSize = 0;
         let bodyChunks = [];
         let totalBodySize = 0;
-        let paramIndex = 0;
 
         function ensure(size) {
             if (bufferLen + size <= buffer.length) return;
@@ -94,17 +93,11 @@ export function parseMultipart(stream, boundary, func_param_data_types, max_requ
         }
 
         function parseHeaders(buf) {
-            const headers = Object.create(null);
-            let start = 0;
-            while (true) {
-                const end = buf.indexOf(crlf, start);
-                if (end === -1) break;
-                const line = buf.subarray(start, end).toString();
-                start = end + 2;
+            return buf.toString().split("\r\n").reduce((headers, line) => {
                 const idx = line.indexOf(":");
                 if (idx !== -1) headers[line.slice(0, idx).toLowerCase()] = line.slice(idx + 1).trim();
-            }
-            return headers;
+                return headers;
+            }, {});
         }
 
         function setupPart(headers) {
@@ -127,10 +120,10 @@ export function parseMultipart(stream, boundary, func_param_data_types, max_requ
             if (max_request_size > 0 && totalBodySize > max_request_size) return reject("maximum request size exceeded");
             if (max_body_size > 0 && data.length > max_body_size) return reject("maximum field size exceeded");
 
-            const type = func_param_data_types[paramIndex++];
+            const type = func_param_data_types[currentName], v = data.toString("utf8");
 
             if (currentFilename) {
-                fields[currentName] = currentFilename === ".json" ? decode(data.toString("utf8")) : currentFilename === "blob" ? new Blob([data]) : new File([data], currentFilename);
+                fields[currentName] = currentFilename === ".json" ? decode(v) : currentFilename === "blob" ? new Blob([data]) : new File([data], currentFilename);
             } else {
                 fields[currentName] = type === "number" ? +v : type === "boolean" ? v === "true" : v === "undefined" ? undefined : v === "null" ? null : v;
             }
@@ -195,14 +188,6 @@ export function parseMultipart(stream, boundary, func_param_data_types, max_requ
     });
 }
 
-function deserialize(v) {
-    if (v?.__t === "Map") return new Map(v.v);
-    if (v?.__t === "RegExp") return new Regex(v.v);
-    if (v?.__t === "Set") return new Set(v.v);
-    if (v?.__t === "Date") return new Date(v.v);
-    return v;
-}
-
-function decode(json) {
-    return JSON.parse(json, (_, v) => deserialize(v));
-}
+const deserialization_map = { "Date": (v) => new Date(v), "RegExp": (v) => new RegExp(v), "Set": (v) => new Set(v), "Map": (v) => new Map(v) };
+const deserialize = (v) => deserialization_map[v?.__t] ? deserialization_map[v.__t](v.v) : v;
+const decode = (json) => JSON.parse(json, (_, v) => deserialize(v));

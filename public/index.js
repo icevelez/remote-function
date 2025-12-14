@@ -12,9 +12,10 @@ REMOTE.create_application({
     test_set: new Set([1, 2, 3, 4, 5]),
     test_date: new Date(),
 },
-    [5, 4, 3, 1, 2],
+    new Map([[1, 2243], ['hello', '3253']]),
+    new Set(['a', 'b', 'c', 'd']),
     new Date(),
-    new Map(),
-    new Set(),
-    "XXXXX"
+    "XXXXX",
+    1251352,
+    { 'x': 'hello' },
 )
