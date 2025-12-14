@@ -3,7 +3,7 @@ import { connectRemote } from "./remote.js";
 /** @import RemoteFunction from '../remote_api.js' */
 /** @type {RemoteFunction} */
 const REMOTE = connectRemote("/api/remote", {
-    'x-auth': 'fake-auth'
+    'x-auth': 'hello_from_client_my_name_is_ice'
 });
 
 /** @type {HTMLHeadingElement} */

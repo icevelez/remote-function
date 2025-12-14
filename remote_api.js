@@ -1,8 +1,22 @@
+/** @import { authInstance } from "./lib/auth.js" */
+
+/**
+ * @template {any} T
+ */
 export default class {
 
     #database = null;
-    #auth = null;
 
+    /** @type {ReturnType<typeof authInstance<any>>['context']} */
+    #auth;
+
+    /** @type {ReturnType<typeof authInstance<T>>['context']} */
+    example_exposed_auth;
+
+    /**
+     * @param {any} database
+     * @param {ReturnType<typeof authInstance<T>>['context']} auth
+     */
     constructor(database, auth) {
         if (!database) throw new Error("no database adaptor passed");
         if (!auth) throw new Error("no auth adaptor passed");
@@ -16,7 +30,7 @@ export default class {
      */
     greetings = async (body, file) => {
 
-        console.log(body, file);
+        console.log(this.#auth.getContext(), "\n", body, file);
         return { message: `Hello from server "${body.age} ${body.name}"`, date: new Date() };
     }
 
@@ -41,7 +55,7 @@ export default class {
      * @param {File} file
      */
     upload_file = async (file) => {
-        console.log(this.#auth.getUser())
+        console.log(this.#auth.getContext())
         console.log("Uploaded File:", file);
         return "Upload Sucessful!";
     }
