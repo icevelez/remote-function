@@ -1,8 +1,10 @@
 import { connectRemote } from "./remote.js";
 
-/** @import {remote_functions} from '../remote_api.js' */
-/** @type {typeof remote_functions} */
-const REMOTE = connectRemote("/api/remote");
+/** @import RemoteFunction from '../remote_api.js' */
+/** @type {RemoteFunction} */
+const REMOTE = connectRemote("/api/remote", {
+    'x-auth': 'fake-auth'
+});
 
 /** @type {HTMLHeadingElement} */
 const headerEl = document.getElementById("h1_el");
@@ -18,7 +20,7 @@ buttonEl.addEventListener('click', async () => {
     const file = fileList[0];
     if (!file) return;
 
-    const message = await REMOTE.upload_file(file, file, file);
+    const message = await REMOTE.upload_file(file);
     console.log(message);
 })
 
