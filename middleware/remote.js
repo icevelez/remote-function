@@ -130,7 +130,7 @@ export function parseMultipart(stream, boundary, func_param_data_types, max_requ
             const type = func_param_data_types[paramIndex++];
 
             if (currentFilename) {
-                fields[currentName] = currentFilename === "json" ? JSON.parse(data.toString("utf8")) : currentFilename === "blob" ? new Blob([data]) : new File([data], currentFilename);
+                fields[currentName] = currentFilename === ".json" ? JSON.parse(data.toString("utf8")) : currentFilename === "blob" ? new Blob([data]) : new File([data], currentFilename);
             } else {
                 const v = data.toString("utf8");
                 fields[currentName] = type === "number" ? +v : type === "boolean" ? v === "true" : v === "undefined" ? undefined : v === "null" ? null : v;

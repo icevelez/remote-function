@@ -1,10 +1,6 @@
-/**
- * @param {string} fn_name
- * @param {any[]} args
- */
 async function remoteFetch(fn_name, headers, args, remote_endpoint) {
     const formData = new FormData();
-    for (let i = 0; i < args.length; i++) formData.append(i, args[i] && Object.getPrototypeOf(args[i]) === Object.prototype ? new File([JSON.stringify(args[i])], 'json') : args[i]);
+    for (let i = 0; i < args.length; i++) formData.append(i, args[i] && Object.getPrototypeOf(args[i]) === Object.prototype ? new File([JSON.stringify(args[i])], '.json') : args[i]);
 
     const response = await fetch(remote_endpoint, {
         method: 'POST',
@@ -28,9 +24,8 @@ async function remoteFetch(fn_name, headers, args, remote_endpoint) {
 /**
  * @param {string} remote_endpoint
  * @param {Record<string, string>} headers
- * @returns {object}
  */
-export function connectRemote(remote_endpoint = "", headers = {}) {
+export function connectRemote(remote_endpoint, headers = {}) {
     return new Proxy({}, {
         get(_, fn_name) {
             return (...args) => remoteFetch(fn_name, headers, args, remote_endpoint)
