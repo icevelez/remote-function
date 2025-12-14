@@ -3,44 +3,9 @@ import { connectRemote } from "./remote.js";
 /** @import RemoteFunction from '../remote_api.js' */
 /** @type {RemoteFunction} */
 const REMOTE = connectRemote("/api/remote", {
-    'x-auth': 'hello_from_client_my_name_is_ice'
+    'x-auth': 'this_is_an_example_jwt'
 });
 
-/** @type {HTMLHeadingElement} */
-const headerEl = document.getElementById("h1_el");
-/** @type {HTMLButtonElement} */
-const buttonEl = document.getElementById("upload_button_el");
-/** @type {HTMLInputElement} */
-const fileInputEl = document.getElementById("file_input_el");
-
-buttonEl.addEventListener('click', async () => {
-    const fileList = fileInputEl.files;
-    if (!fileList) return;
-
-    const file = fileList[0];
-    if (!file) return;
-
-    const message = await REMOTE.upload_file(file);
-    console.log(message);
+REMOTE.create_application({
+    example_data: "hello_world"
 })
-
-const data = await REMOTE.greetings({ age: 25, name: "ice" }, new File(['sefsfse'], 'hello_world.txt'));
-
-console.log("greetings:", data);
-console.log("server add number:", await REMOTE.add_numbers(69, 69));
-
-headerEl.textContent = data.message;
-console.log("server date:", data.date);
-
-// let count = 0;
-// const maxCount = 5;
-
-// const recurseCall = async () => {
-//     if (count > maxCount) return;
-
-//     await REMOTE.console_log("Hello from client counter: " + count);
-//     count++;
-//     setTimeout(recurseCall, 1000);
-// }
-
-// recurseCall()

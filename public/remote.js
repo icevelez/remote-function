@@ -17,13 +17,12 @@ async function remoteFetch(fn_name, headers, args, remote_endpoint) {
     })
 
     if (response.status >= 400) throw new Error(await response.text());
-    if (response.status < 200 || response.status > 300 || response.status === 204) return;
+    if (response.status < 200 || response.status > 299 || response.status === 204) return;
 
-    const parse_type = response.headers.get("parse-type") || "text";
-    const data = await response[parse_type]();
+    const data = await response[response.headers['content-type'] === 'application/json' ? 'json' : 'text']();
     const response_type = response.headers.get("type");
 
-    return (response_type === "number") ? (data - 0) : (response_type === "boolean") ? Boolean(data) : data;
+    return (response_type === "number") ? +data : (response_type === "boolean") ? Boolean(data) : data;
 }
 
 /**

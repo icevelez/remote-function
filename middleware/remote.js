@@ -48,9 +48,7 @@ export function remoteFunction(remote_fns, config) {
             const fields = await parseMultipart(req, boundary, func_param_data_types, byte_to_megabyte(config?.max_request_size_in_mb || 0), byte_to_megabyte(config?.max_field_size_in_mb || 0));
             let response = func(...fields);
             if (response instanceof Promise) response = await response;
-            res.setHeader('Parse-Type', response && typeof response === "object" ? "json" : "text");
-            res.setHeader('Type', response ? typeof response : "text");
-            res.setHeader('Content-type', typeof response === "object" ? "application/json" : "plain/text");
+            res.setHeaders(new Headers({ 'Type': response ? typeof response : "text", 'Content-type': typeof response === "object" ? "application/json" : "plain/text" }));
             res.end(response && Object.getPrototypeOf(response) === Object.prototype ? JSON.stringify(response) : typeof response === "object" ? response : response?.toString());
         } catch (error) {
             res.statusCode = 500;
@@ -70,133 +68,127 @@ export function remoteFunction(remote_fns, config) {
  */
 export function parseMultipart(stream, boundary, func_param_data_types, max_request_size, max_body_size) {
     return new Promise((resolve, reject) => {
-        const dashBoundary = "--" + boundary;
-        const boundaryBuffer = Buffer.from(dashBoundary);
-        const endBoundaryBuffer = Buffer.from(dashBoundary + "--");
+        const dashBoundary = Buffer.from("--" + boundary);
+        const dashBoundaryEnd = Buffer.from("--" + boundary + "--");
+        const crlf = Buffer.from("\r\n");
+        const headerEndSeq = Buffer.from("\r\n\r\n");
         const fields = [];
 
-        let buffer = Buffer.alloc(0);
-        let state = "SEARCH_PART"; // SEARCH_PART → HEADERS → BODY
-        let headers = "";
-        let current = {
-            name: null,
-            filename: null,
-            data: []
-        };
+        let buffer = Buffer.allocUnsafe(64 * 1024);
+        let bufferLen = 0;
+        let state = 0; // 0 SEARCH, 1 HEADERS, 2 BODY
+        let headerStart = 0;
+        let bodyStart = 0;
+        let currentName = null;
+        let currentFilename = null;
+        let currentSize = 0;
+        let bodyChunks = [];
+        let totalBodySize = 0;
+        let paramIndex = 0;
 
-        let total_body_size = 0;
-
-        function parseHeaders(headerText) {
-            const out = {};
-            headerText.split("\r\n").forEach(line => {
-                const idx = line.indexOf(":");
-                if (idx === -1) return;
-                const key = line.slice(0, idx).toLowerCase();
-                const val = line.slice(idx + 1).trim();
-                out[key] = val;
-            });
-            return out;
+        function ensure(size) {
+            if (bufferLen + size <= buffer.length) return;
+            const next = Buffer.allocUnsafe(Math.max(buffer.length * 2, bufferLen + size));
+            buffer.copy(next, 0, 0, bufferLen);
+            buffer = next;
         }
 
-        // Given headers, extract form info
+        function parseHeaders(buf) {
+            const headers = Object.create(null);
+            let start = 0;
+            while (true) {
+                const end = buf.indexOf(crlf, start);
+                if (end === -1) break;
+                const line = buf.subarray(start, end).toString();
+                start = end + 2;
+                const idx = line.indexOf(":");
+                if (idx !== -1) headers[line.slice(0, idx).toLowerCase()] = line.slice(idx + 1).trim();
+            }
+            return headers;
+        }
+
         function setupPart(headers) {
             const disp = headers["content-disposition"];
             if (!disp) return;
 
-            const name = /name="([^"]+)"/.exec(disp)?.[1];
-            const filename = /filename="([^"]*)"/.exec(disp)?.[1] || null;
+            currentName = /name="([^"]+)"/.exec(disp)?.[1] ?? null;
+            currentFilename = /filename="([^"]*)"/.exec(disp)?.[1] ?? null;
 
-            current = { name, filename, data: [] };
+            currentSize = 0;
+            bodyChunks.length = 0;
         }
 
         function finishPart() {
-            if (!current.name) return;
+            if (!currentName) return;
 
-            const max_request_size_in_mb = max_request_size / (1024 * 1024);
-            const max_body_size_in_mb = max_body_size / (1024 * 1024);
+            const data = Buffer.concat(bodyChunks, currentSize);
+            totalBodySize += data.length;
 
-            const data = Buffer.concat(current.data);
-            total_body_size += data.byteLength;
+            if (max_request_size > 0 && totalBodySize > max_request_size) return reject("maximum request size exceeded");
+            if (max_body_size > 0 && data.length > max_body_size) return reject("maximum field size exceeded");
 
-            if (max_request_size > 0 && total_body_size >= max_request_size) {
-                const error_message = `maximum request size (${max_request_size_in_mb.toFixed(2)}MB) reached`;
-                console.error(error_message);
-                return reject(error_message);
+            const type = func_param_data_types[paramIndex++];
+
+            if (currentFilename) {
+                fields[currentName] = currentFilename === "json" ? JSON.parse(data.toString("utf8")) : currentFilename === "blob" ? new Blob([data]) : new File([data], currentFilename);
+            } else {
+                const v = data.toString("utf8");
+                fields[currentName] = type === "number" ? +v : type === "boolean" ? v === "true" : v === "undefined" ? undefined : v === "null" ? null : v;
             }
 
-            if (max_body_size > 0 && data.byteLength >= max_body_size) {
-                const error_message = `maximum field size (${max_body_size_in_mb.toFixed(2)}MB) reached`;
-                console.error(error_message);
-                return reject(error_message);
-            }
-
-            const type = func_param_data_types[fields.length];
-            if (!type) throw new Error("Missing type");
-
-            if (current.filename) {
-                fields[current.name] = current.filename === "json" ? JSON.parse(data.toString("utf8")) : current.filename === "blob" ? new Blob([data]) : new File([data], current.filename);
-                return;
-            }
-
-            fields[current.name] = data.toString("utf8");
-            fields[current.name] = type === "number" ? (fields[current.name] - 0) : type === "boolean" ? Boolean(fields[current.name]) : fields[current.name] === "undefined" ? undefined : fields[current.name] === "null" ? null : fields[current.name];
+            currentName = null;
+            currentFilename = null;
         }
 
         stream.on("data", chunk => {
-            buffer = Buffer.concat([buffer, chunk]);
-            let boundaryIndex;
+            ensure(chunk.length);
+            chunk.copy(buffer, bufferLen);
+            bufferLen += chunk.length;
 
-            while (true) {
-                if (state === "SEARCH_PART") {
-                    boundaryIndex = buffer.indexOf(boundaryBuffer);
-                    if (boundaryIndex === -1) return;
-                    buffer = buffer.subarray(boundaryIndex + boundaryBuffer.length);
-                    if (buffer.subarray(0, 2).toString() === "--") return resolve(fields);
-                    if (buffer.subarray(0, 2).toString() === "\r\n") buffer = buffer.subarray(2);
-                    headers = "";
-                    state = "HEADERS";
+            let i = 0;
+            while (i < bufferLen) {
+                if (state === 0) {
+                    const idx = buffer.indexOf(dashBoundary, i);
+                    if (idx === -1) break;
+                    i = idx + dashBoundary.length;
+                    if (buffer.indexOf(dashBoundaryEnd, idx) === idx) return resolve(fields);
+                    if (buffer[i] === 13 && buffer[i + 1] === 10) i += 2;
+                    headerStart = i;
+                    state = 1;
                 }
 
-                if (state === "HEADERS") {
-                    const headerEnd = buffer.indexOf("\r\n\r\n");
-                    if (headerEnd === -1) return; // need more data
+                if (state === 1) {
+                    const idx = buffer.indexOf(headerEndSeq, headerStart);
+                    if (idx === -1) break;
 
-                    headers = buffer.subarray(0, headerEnd).toString();
-                    buffer = buffer.subarray(headerEnd + 4);
+                    const headers = parseHeaders(buffer.subarray(headerStart, idx));
+                    setupPart(headers);
 
-                    setupPart(parseHeaders(headers));
-                    state = "BODY";
+                    i = idx + 4;
+                    bodyStart = i;
+                    state = 2;
                 }
 
-                if (state === "BODY") {
-                    // Look for the next boundary
-                    const nextBoundaryPos = buffer.indexOf("\r\n" + dashBoundary);
-                    if (nextBoundaryPos === -1) {
-                        // all buffer is body data for now
-                        current.data.push(buffer);
-                        buffer = Buffer.alloc(0);
-                        return;
-                    }
+                if (state === 2) {
+                    const idx = buffer.indexOf(dashBoundary, bodyStart);
+                    if (idx === -1) break;
 
-                    // Body until boundary
-                    const bodyChunk = buffer.subarray(0, nextBoundaryPos);
-                    current.data.push(bodyChunk);
+                    const chunkData = buffer.subarray(bodyStart, idx - 2);
+                    bodyChunks.push(chunkData);
+                    currentSize += chunkData.length;
 
                     finishPart();
 
-                    // Move buffer after boundary
-                    buffer = buffer.subarray(nextBoundaryPos + 2); // skip leading CRLF
-
-                    // Detect -- at end
-                    if (buffer.indexOf(endBoundaryBuffer) === 0) return resolve(fields);
-
-                    // Skip boundary + CRLF
-                    buffer = buffer.subarray(boundaryBuffer.length);
-                    if (buffer.subarray(0, 2).toString() === "\r\n") buffer = buffer.subarray(2);
-
-                    state = "HEADERS";
+                    i = idx + dashBoundary.length;
+                    if (buffer[i] === 45 && buffer[i + 1] === 45) return resolve(fields);
+                    if (buffer[i] === 13 && buffer[i + 1] === 10) i += 2;
+                    headerStart = i;
+                    state = 1;
                 }
             }
+
+            buffer.copy(buffer, 0, i, bufferLen);
+            bufferLen -= i;
         });
 
         stream.on("end", () => resolve(fields));
