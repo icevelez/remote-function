@@ -123,7 +123,7 @@ export function parseMultipart(stream, boundary, func_param_data_types, max_requ
             const type = func_param_data_types[currentName], v = data.toString("utf8");
 
             if (currentFilename) {
-                fields[currentName] = currentFilename === ".json" ? decode(v) : currentFilename === "blob" ? new Blob([data]) : new File([data], currentFilename);
+                fields[currentName] = currentFilename === ".json" ? decode(v, fields) : currentFilename === "blob" ? new Blob([data]) : new File([data], currentFilename);
             } else {
                 fields[currentName] = type === "number" ? +v : type === "boolean" ? v === "true" : v === "undefined" ? undefined : v === "null" ? null : v;
             }
@@ -190,4 +190,7 @@ export function parseMultipart(stream, boundary, func_param_data_types, max_requ
 
 const deserialization_map = { "Date": (v) => new Date(v), "RegExp": (v) => new RegExp(v), "Set": (v) => new Set(v), "Map": (v) => new Map(v) };
 const deserialize = (v) => deserialization_map[v?.__t] ? deserialization_map[v.__t](v.v) : v;
-const decode = (json) => JSON.parse(json, (_, v) => deserialize(v));
+const decode = (json, fields) => JSON.parse(json, (_, v) => {
+    if (v?.__b >= 0) return fields[`blob-${v.__b}`];
+    return deserialize(v);
+});

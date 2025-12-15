@@ -1,4 +1,4 @@
-/** @import { authInstance } from "./lib/auth.js" */
+/** @import { createAuth } from "./lib/auth.js" */
 /** @import { Pool } from "pg"; */
 
 /**
@@ -7,14 +7,14 @@
 export default class {
 
     /** @type {Pool} */
-    #database = null;
+    #database;
 
-    /** @type {ReturnType<typeof authInstance<any>>['context']} */
+    /** @type {ReturnType<typeof createAuth<any>>['context']} */
     #auth;
 
     /**
-     * @param {any} database
-     * @param {ReturnType<typeof authInstance<T>>['context']} auth
+     * @param {Pool} database
+     * @param {ReturnType<typeof createAuth<T>>['context']} auth
      */
     constructor(database, auth) {
         if (!database) throw new Error("no database adaptor");

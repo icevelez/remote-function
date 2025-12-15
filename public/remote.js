@@ -1,12 +1,21 @@
 const serialize = (v) => v instanceof Map ? { __t: "Map", v: [...v] } : v instanceof Set ? { __t: "Set", v: [...v] } : v instanceof RegExp ? { __t: "RegExp", v: v.toString() } : v instanceof Date ? { __t: "Date", v: v.toISOString() } : v;
-const encode = (obj) => JSON.stringify(obj, (k, v) => serialize(obj[k] || v));
+
+let encoded_blobs_idx = 0;
+const encode = (obj, formData) => JSON.stringify(obj, (k, v) => {
+    if (obj !== v && (v instanceof File || v instanceof Blob)) {
+        formData.append(`blob-${encoded_blobs_idx}`, v);
+        return { __b: encoded_blobs_idx++ };
+    }
+    return serialize(obj[k] || v);
+});
 
 async function remoteFetch(fn_name, headers, args, remote_endpoint) {
+    encoded_blobs_idx = 0;
     const formData = new FormData();
     for (let i = 0; i < args.length; i++) {
         const arg = serialize(args[i]);
         const is_jsonable = arg && Object.getPrototypeOf(arg) === Object.prototype || Array.isArray(arg);
-        formData.append(i, is_jsonable ? new File([encode(arg)], '.json') : arg);
+        formData.append(i, is_jsonable ? new File([encode(arg, formData)], '.json') : arg);
     }
 
     const response = await fetch(remote_endpoint, {

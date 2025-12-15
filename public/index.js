@@ -11,12 +11,12 @@ const data = await REMOTE.example_function({
     test_map: new Map(),
     test_set: new Set([1, 2, 3, 4, 5]),
     test_date: new Date(),
-},
-    new Map([[1, 2243], ['hello', '3253']]),
-    new Set(['a', 'b', 'c', 'd']),
-    new Date(),
-    "XXXXX",
-    1251352,
-    { 'x': 'hello' },
-)
+    deeply_nested: {
+        more_nest: {
+            even_further_nest: new Map(),
+        }
+    },
+
+    last_nest: new File(['hello_from_client_as_file'], 'client_message.txt'),
+})
 console.log(data);
