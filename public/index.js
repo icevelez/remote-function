@@ -16,7 +16,8 @@ const data = await REMOTE.example_function({
             even_further_nest: new Map(),
         }
     },
-
-    last_nest: new File(['hello_from_client_as_file'], 'client_message.txt'),
+    test_file: {
+        nest_file: new File(['hello_from_client_as_file'], 'client_message.txt')
+    },
 })
 console.log(data);
